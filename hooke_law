@@ -1,0 +1,104 @@
+import matplotlib.pyplot as plt
+from statistics import mean
+import pandas as pd 
+import numpy as np
+import math
+from sklearn.metrics import r2_score
+
+def extension(x):
+    return x - 0.076
+
+def force(x):
+    return x*9.8
+
+def sf(x, n):
+    if x == 0:
+        return 0
+    else:
+        magnitude = int(math.floor(math.log10(abs(x))))
+        rounded_number = round(x, n - magnitude - 1)
+        return rounded_number
+
+hooke_raw = {0.3:[0.103,0.102,0.103], 0.4: [0.12,0.12,0.119], 0.5: [0.135,0.135,0.135], 
+             0.6: [0.152,0.153,0.152], 0.7: [0.169,0.17,0.168]}
+
+hooke_x = list(hooke_raw.keys()) #mass in kg
+hooke_y_raw = list(hooke_raw.values())
+
+hooke_raw_df = pd.DataFrame.from_dict(hooke_raw, orient = 'index')
+hooke_raw_df.index.name = "Mass/m (kg)"
+hooke_raw_df.rename(columns = {0: "T\N{SUBSCRIPT ONE} (m)", 1: "T\N{SUBSCRIPT TWO} (m)", 2: "T\N{SUBSCRIPT THREE}(m)"}, 
+                    inplace = True)
+hooke_raw_df.style.set_caption("Raw Data - Hooke's Law")
+
+hooke_x = list(hooke_raw.keys())
+hooke_x = list(map(force, hooke_x))
+
+hooke_y = []
+hooke_y_error = []
+for i in hooke_y_raw:
+    hooke_y.append(mean(map(extension,i)))
+    hooke_y_error.append((max(i) - min(i))/2)
+
+hooke_grad_x = [0.3*9.8,0.7*9.8]
+hooke_grad_high_y = [hooke_y[0] - (hooke_y_error[0]), hooke_y[4] + (hooke_y_error[4])]
+hooke_grad_low_y = [hooke_y[0] + (hooke_y_error[0]), hooke_y[4] - (hooke_y_error[4])]
+
+hooke_grad_high,r = np.polyfit(hooke_grad_x, hooke_grad_high_y, 1)
+hooke_grad_low,r = np.polyfit(hooke_grad_x, hooke_grad_low_y, 1)
+
+hooke_data = {
+    'T\N{SUBSCRIPT ONE} (m)': [i[0] for i in hooke_y_raw],
+    'T\N{SUBSCRIPT TWO} (m)': [i[1] for i in hooke_y_raw],
+    'T\N{SUBSCRIPT THREE}(m)': [i[2] for i in hooke_y_raw],
+    'x\N{SUBSCRIPT ONE} (m)': [extension(i[0]) for i in hooke_y_raw],
+    'x\N{SUBSCRIPT TWO} (m)': [extension(i[1]) for i in hooke_y_raw],
+    'x\N{SUBSCRIPT THREE} (m)': [extension(i[2]) for i in hooke_y_raw],
+    'x (m)': [sf(i,3) for i in hooke_y],
+    'Δx': [sf(i,2) for i in hooke_y_error]
+}
+
+hooke_processed = pd.DataFrame(hooke_data, index = hooke_x)
+hooke_processed.index.name = 'Force/F (N)'
+
+print("Unstreched Length (T\N{SUBSCRIPT ONE}): 0.076m")
+hooke_processed
+
+plt.figure(figsize=(10, 7.5))
+plt.title("Force (N) vs Extension(m) - Hooke's Law [Best Fit]")
+plt.xlabel("Force (N)")
+plt.ylabel("Extension ((m))")
+
+plt.errorbar(hooke_x, hooke_y, yerr=hooke_y_error, fmt='o', color='b', label='Data with Uncertainty')
+
+hooke_grad, hooke_intercept = np.polyfit(hooke_x, hooke_y, 1)
+pred_hooke_y = np.array(hooke_grad) * hooke_x + hooke_intercept
+hooke_r2 = r2_score(hooke_y, pred_hooke_y)
+plt.plot(hooke_x, hooke_grad*np.array(hooke_x) + hooke_intercept, label = "Line of Best Fit [1/k], r-value = {}".format(round(hooke_r2,4)), color = "blue", linestyle = "--")
+
+plt.legend()
+
+plt.grid(True)
+print("R value for linear regression/best fit:", hooke_r2)
+print("Slope: ", hooke_grad)
+print("Y-intercept: ", hooke_intercept)
+
+plt.figure(figsize=(10, 7.5))
+plt.title("Force (N) vs Extension(m) - Hooke's Law [Maximum and Minimum]")
+plt.xlabel("Force (N)")
+plt.ylabel("Extension ((m))")
+
+plt.errorbar(hooke_x, hooke_y, yerr=hooke_y_error, fmt='o', color='b', label='Data with Uncertainty')
+
+plt.plot(hooke_grad_x, hooke_grad_high_y, label = "Line with highest gradient", color = "orange", linestyle = ":")
+plt.plot(hooke_grad_x, hooke_grad_low_y, label = "Line with lowest gradient", color = "green", linestyle = ":")
+
+plt.legend()
+
+plt.grid(True)
+
+hooke_k = 1/hooke_grad
+hooke_k_low = 1/hooke_grad_high
+hooke_k_high = 1/hooke_grad_low
+hooke_k_uncertainty = (hooke_k_high - hooke_k_low)/2
+print("Spring Constant =", hooke_k, "±", hooke_k_uncertainty)
